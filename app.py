@@ -3,42 +3,50 @@ from flask_cors import CORS
 import json
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app)  # Allow cross-origin requests
 
-# Load tender data from file
-with open('tenders.json', 'r') as f:
-    tenders_data = json.load(f)
+# Load tenders.json from the same folder
+try:
+    with open('tenders.json', 'r', encoding='utf-8') as f:
+        tenders_data = json.load(f)
+except Exception as e:
+    tenders_data = []
+    print("Error loading tenders.json:", e)
 
-# ✅ Route: Get all tenders
+# Root route
+@app.route('/')
+def home():
+    return "Tender API is live. Use /api/tenders to fetch data."
+
+# Get all tenders
 @app.route('/api/tenders', methods=['GET'])
 def get_tenders():
     return jsonify(tenders_data), 200
 
-# ✅ Route: Match tenders with seller keyword
+# Match tenders by keyword
 @app.route('/api/match', methods=['GET'])
 def match_tenders():
     keyword = request.args.get('seller', '').lower()
     if not keyword:
         return jsonify({"error": "Missing 'seller' query parameter."}), 400
 
-    matching = [t for t in tenders_data if keyword in t['title'].lower()]
-    return jsonify(matching if matching else {"message": "No tenders found"}), 200
+    matches = [t for t in tenders_data if keyword in t.get('title', '').lower()]
+    if not matches:
+        return jsonify({"message": "No tenders found matching the keyword."}), 404
 
-# ✅ Route: Summarize tender
+    return jsonify(matches), 200
+
+# Summarize tender text
 @app.route('/api/summarize', methods=['POST'])
-def summarize():
+def summarize_tender():
     data = request.get_json()
-    text = data.get('text', '')
-    if not text:
-        return jsonify({"error": "Missing 'text' field"}), 400
-
-    summary = text[:100] + '...' if len(text) > 100 else text
+    tender_text = data.get('text', '')
+    
+    if not tender_text:
+        return jsonify({"error": "No tender text provided."}), 400
+    
+    summary = tender_text[:100] + "..." if len(tender_text) > 100 else tender_text
     return jsonify({"summary": summary}), 200
-
-# ✅ Home route (optional)
-@app.route('/')
-def home():
-    return "Tender API is running. Try /api/tenders"
 
 if __name__ == '__main__':
     app.run(debug=True)
